@@ -102,16 +102,15 @@ function App() {
 
   const filtered = useMemo(() => {
     if (!search.trim()) return [];
-    const q = search.toLowerCase();
+    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return [];
     const selectedIds = new Set(selected.map((m) => m.id));
     return models
-      .filter(
-        (m) =>
-          !selectedIds.has(m.id) &&
-          (m.id.toLowerCase().includes(q) ||
-            m.provider.toLowerCase().includes(q) ||
-            m.model.toLowerCase().includes(q))
-      )
+      .filter((m) => {
+        if (selectedIds.has(m.id)) return false;
+        const haystack = `${m.id} ${m.provider} ${m.model}`.toLowerCase();
+        return terms.every((term) => haystack.includes(term));
+      })
       .slice(0, 50);
   }, [search, models, selected]);
 
