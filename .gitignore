@@ -34,6 +34,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 node_modules
 .env
-PROJECT_PLAN.md
+PROJECT_PLAN*
 model_prices_and_context_window.json
 
