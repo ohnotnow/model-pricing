@@ -237,7 +237,8 @@ function formatTokens(t: number): string {
 
 function CostCurveChart({ models }: { models: ModelPricing[] }) {
   const chartRef = useRef<ChartJS<"line">>(null);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
+  const isZoomed = zoomRange !== null;
 
   if (models.length === 0) {
     return (
@@ -301,7 +302,7 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
 
   const handleResetZoom = () => {
     chartRef.current?.resetZoom();
-    setIsZoomed(false);
+    setZoomRange(null);
   };
 
   return (
@@ -373,15 +374,18 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                     borderWidth: 1,
                   },
                   mode: "x",
-                  onZoomComplete: () => setIsZoomed(true),
+                  onZoomComplete: ({ chart }) => {
+                    const { min, max } = chart.scales.x;
+                    setZoomRange({ min, max });
+                  },
                 },
               },
             },
             scales: {
               x: {
                 type: "linear",
-                min: 0,
-                max: MAX_TOKENS,
+                min: zoomRange?.min ?? 0,
+                max: zoomRange?.max ?? MAX_TOKENS,
                 grid: { color: "rgba(255,255,255,0.04)" },
                 ticks: {
                   color: "#8e9ab4",

@@ -38,18 +38,12 @@ This fetches fresh pricing data, processes it into a simplified JSON file, and b
 
 A `netlify.toml` is included for one-click Netlify deploys.
 
-## Running tests
-
-```bash
-bun test
-```
-
 ## Contributing
 
 1. Clone the repo
 2. Run `bun install`
 3. Run `bun --hot index.ts` and open http://localhost:3000
-4. Make your changes and run `bun test` before submitting a PR
+4. Make your changes and submit a PR
 
 ## Licence
 
