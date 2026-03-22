@@ -307,6 +307,7 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
           <div className="chart-card-title">Cost Curve</div>
           <div className="chart-card-subtitle">
             Cost as token count increases (0 – 10M tokens) — solid = output, dashed = input, dotted = 50/50 mix
+            <br />Tooltip shows: model (input / output / mix)
           </div>
         </div>
       </div>
@@ -326,8 +327,28 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                 titleFont: { family: "IBM Plex Sans", size: 13 },
                 bodyFont: { family: "IBM Plex Mono", size: 12 },
                 padding: 12,
+                filter: () => false,
                 callbacks: {
-                  label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`,
+                  afterBody: (items) => {
+                    const perModel: Record<string, { input: number; output: number; mix: number }> = {};
+                    for (const item of items) {
+                      const label = item.dataset.label ?? "";
+                      const modelId = label.replace(/ \((input|output|50\/50 mix)\)$/, "");
+                      if (!perModel[modelId]) {
+                        perModel[modelId] = { input: 0, output: 0, mix: 0 };
+                      }
+                      const val = item.parsed.y;
+                      if (label.endsWith("(input)")) perModel[modelId].input = val;
+                      else if (label.endsWith("(output)")) perModel[modelId].output = val;
+                      else perModel[modelId].mix = val;
+                    }
+                    return Object.entries(perModel)
+                      .sort(([, a], [, b]) => b.mix - a.mix)
+                      .map(
+                        ([id, v]) =>
+                          `${id}  $${v.input.toFixed(2)} / $${v.output.toFixed(2)} / $${v.mix.toFixed(2)}`
+                      );
+                  },
                 },
               },
             },
