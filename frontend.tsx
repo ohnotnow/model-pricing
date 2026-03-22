@@ -63,7 +63,7 @@ function App() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/models")
+    fetch("/models.json")
       .then((r) => r.json())
       .then((data: ModelPricing[]) => {
         setModels(data);

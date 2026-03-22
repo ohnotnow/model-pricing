@@ -8,7 +8,7 @@ Bun.serve({
   port: 3000,
   routes: {
     "/": index,
-    "/api/models": () => Response.json(models),
+    "/models.json": () => Response.json(models),
   },
   development: {
     hmr: true,
