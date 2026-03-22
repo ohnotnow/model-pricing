@@ -13,6 +13,7 @@ import {
   Filler,
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "./styles.css";
 
 ChartJS.register(
@@ -24,7 +25,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
 // ─── Types ────────────────────────────────────────────
@@ -221,16 +223,22 @@ function App() {
 
 // ─── Line Chart: Cost vs Token Count ──────────────────
 
-const TOKEN_STEPS = [
-  0, 100_000, 250_000, 500_000, 1_000_000, 2_000_000,
-  3_000_000, 5_000_000, 7_500_000, 10_000_000,
-];
+// Generate 50 evenly-spaced points for smooth curves
+const NUM_POINTS = 50;
+const MAX_TOKENS = 10_000_000;
+const TOKEN_STEPS = Array.from({ length: NUM_POINTS + 1 }, (_, i) => (i / NUM_POINTS) * MAX_TOKENS);
 
-const TOKEN_LABELS = TOKEN_STEPS.map((t) =>
-  t === 0 ? "0" : t >= 1_000_000 ? `${t / 1_000_000}M` : `${t / 1_000}K`
-);
+function formatTokens(t: number): string {
+  if (t === 0) return "0";
+  if (t >= 1_000_000) return `${(t / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (t >= 1_000) return `${(t / 1_000).toFixed(0)}K`;
+  return `${t}`;
+}
 
 function CostCurveChart({ models }: { models: ModelPricing[] }) {
+  const chartRef = useRef<ChartJS<"line">>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
+
   if (models.length === 0) {
     return (
       <div className="chart-card">
@@ -251,32 +259,24 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
 
   const datasets = models.flatMap((m, i) => {
     const colour = getColour(i);
-    const inputData = TOKEN_STEPS.map(
-      (t) => (t / 1_000_000) * m.inputCostPer1M
-    );
-    const outputData = TOKEN_STEPS.map(
-      (t) => (t / 1_000_000) * m.outputCostPer1M
-    );
-    const mixData = TOKEN_STEPS.map(
-      (t) =>
-        (t / 1_000_000) * (m.inputCostPer1M * 0.5 + m.outputCostPer1M * 0.5)
-    );
+    const makePoints = (costPer1M: number) =>
+      TOKEN_STEPS.map((t) => ({ x: t, y: (t / 1_000_000) * costPer1M }));
 
     return [
       {
         label: `${m.id} (input)`,
-        data: inputData,
+        data: makePoints(m.inputCostPer1M),
         borderColor: colour,
         backgroundColor: "transparent",
         borderWidth: 2,
-        borderDash: [6, 3],
+        borderDash: [6, 3] as number[],
         pointRadius: 0,
         pointHoverRadius: 4,
         tension: 0.1,
       },
       {
         label: `${m.id} (output)`,
-        data: outputData,
+        data: makePoints(m.outputCostPer1M),
         borderColor: colour,
         backgroundColor: "transparent",
         borderWidth: 2,
@@ -286,11 +286,11 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
       },
       {
         label: `${m.id} (50/50 mix)`,
-        data: mixData,
+        data: makePoints(m.inputCostPer1M * 0.5 + m.outputCostPer1M * 0.5),
         borderColor: colour,
         backgroundColor: `${colour}18`,
         borderWidth: 2,
-        borderDash: [2, 2],
+        borderDash: [2, 2] as number[],
         pointRadius: 0,
         pointHoverRadius: 4,
         fill: true,
@@ -299,20 +299,31 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
     ];
   });
 
+  const handleResetZoom = () => {
+    chartRef.current?.resetZoom();
+    setIsZoomed(false);
+  };
+
   return (
     <div className="chart-card">
       <div className="chart-card-header">
         <div>
           <div className="chart-card-title">Cost Curve</div>
           <div className="chart-card-subtitle">
-            Cost as token count increases (0 – 10M tokens) — solid = output, dashed = input, dotted = 50/50 mix
-            <br />Tooltip shows: model (input / output / mix)
+            Solid = output, dashed = input, dotted = 50/50 mix. Tooltip: model (in / out / mix).
+            <br />Drag across the chart to zoom into a token range.
           </div>
         </div>
+        {isZoomed && (
+          <button className="reset-zoom-btn" onClick={handleResetZoom}>
+            Reset Zoom
+          </button>
+        )}
       </div>
       <div className="chart-wrap">
         <Line
-          data={{ labels: TOKEN_LABELS, datasets }}
+          ref={chartRef}
+          data={{ datasets }}
           options={{
             responsive: true,
             maintainAspectRatio: false,
@@ -326,22 +337,23 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                 titleFont: { family: "IBM Plex Sans", size: 13 },
                 bodyFont: { family: "IBM Plex Mono", size: 12 },
                 padding: 12,
-                // Keep one item per model (every 3rd dataset = the input line)
                 filter: (item) => item.datasetIndex % 3 === 0,
-                // Sort by most expensive (mix value) first
                 itemSort: (a, b) => {
-                  const mixA = a.chart.data.datasets[a.datasetIndex + 2]?.data[a.dataIndex] as number ?? 0;
-                  const mixB = b.chart.data.datasets[b.datasetIndex + 2]?.data[b.dataIndex] as number ?? 0;
+                  const mixA = (a.chart.data.datasets[a.datasetIndex + 2]?.data[a.dataIndex] as any)?.y ?? 0;
+                  const mixB = (b.chart.data.datasets[b.datasetIndex + 2]?.data[b.dataIndex] as any)?.y ?? 0;
                   return mixB - mixA;
                 },
                 callbacks: {
-                  // Build one condensed line per model: "name  $in / $out / $mix"
+                  title: (items) => {
+                    const xVal = (items[0]?.raw as any)?.x ?? 0;
+                    return formatTokens(xVal) + " tokens";
+                  },
                   label: (ctx) => {
                     const idx = ctx.dataIndex;
                     const base = ctx.datasetIndex;
-                    const input = ctx.chart.data.datasets[base]?.data[idx] as number ?? 0;
-                    const output = ctx.chart.data.datasets[base + 1]?.data[idx] as number ?? 0;
-                    const mix = ctx.chart.data.datasets[base + 2]?.data[idx] as number ?? 0;
+                    const input = (ctx.chart.data.datasets[base]?.data[idx] as any)?.y ?? 0;
+                    const output = (ctx.chart.data.datasets[base + 1]?.data[idx] as any)?.y ?? 0;
+                    const mix = (ctx.chart.data.datasets[base + 2]?.data[idx] as any)?.y ?? 0;
                     const modelId = (ctx.dataset.label ?? "").replace(/ \(input\)$/, "");
                     return ` ${modelId}  $${input.toFixed(2)} / $${output.toFixed(2)} / $${mix.toFixed(2)}`;
                   },
@@ -352,13 +364,30 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                   }),
                 },
               },
+              zoom: {
+                zoom: {
+                  drag: {
+                    enabled: true,
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    borderColor: "rgba(245, 158, 11, 0.4)",
+                    borderWidth: 1,
+                  },
+                  mode: "x",
+                  onZoomComplete: () => setIsZoomed(true),
+                },
+              },
             },
             scales: {
               x: {
+                type: "linear",
+                min: 0,
+                max: MAX_TOKENS,
                 grid: { color: "rgba(255,255,255,0.04)" },
                 ticks: {
                   color: "#8e9ab4",
                   font: { family: "IBM Plex Mono", size: 11 },
+                  callback: (v) => formatTokens(v as number),
+                  maxTicksLimit: 10,
                 },
                 title: {
                   display: true,
