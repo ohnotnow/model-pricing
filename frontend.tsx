@@ -69,12 +69,12 @@ function App() {
         setModels(data);
         // Pre-select a few interesting models
         const defaults = [
-          "gpt-4o",
-          "gpt-4o-mini",
-          "claude-sonnet-4-20250514",
-          "claude-haiku-4-5-20251001",
-          "gemini/gemini-2.0-flash",
-          "deepseek/deepseek-chat",
+          "gpt-5.4",
+          "claude-opus-4-6",
+          "claude-sonnet-4-6",
+          "gemini/gemini-3.1-pro-preview",
+          "moonshot/kimi-k2.5",
+          "deepseek/deepseek-v3.2",
         ];
         const preselected = defaults
           .map((id) => data.find((m) => m.id === id))
@@ -335,27 +335,27 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
               x: {
                 grid: { color: "rgba(255,255,255,0.04)" },
                 ticks: {
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Mono", size: 11 },
                 },
                 title: {
                   display: true,
                   text: "Tokens",
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Sans", size: 12 },
                 },
               },
               y: {
                 grid: { color: "rgba(255,255,255,0.04)" },
                 ticks: {
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Mono", size: 11 },
                   callback: (v) => `$${v}`,
                 },
                 title: {
                   display: true,
                   text: "Cost (USD)",
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Sans", size: 12 },
                 },
               },
@@ -455,7 +455,7 @@ function CostBarChart({
                 position: "top",
                 align: "end",
                 labels: {
-                  color: "#8892a8",
+                  color: "#b8c0d4",
                   font: { family: "IBM Plex Sans", size: 12 },
                   boxWidth: 12,
                   boxHeight: 12,
@@ -481,7 +481,7 @@ function CostBarChart({
                 stacked,
                 grid: { display: false },
                 ticks: {
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Mono", size: 10 },
                   maxRotation: 45,
                 },
@@ -490,14 +490,14 @@ function CostBarChart({
                 stacked,
                 grid: { color: "rgba(255,255,255,0.04)" },
                 ticks: {
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Mono", size: 11 },
                   callback: (v) => `$${v}`,
                 },
                 title: {
                   display: true,
                   text: "USD per 1M tokens",
-                  color: "#5a6580",
+                  color: "#8e9ab4",
                   font: { family: "IBM Plex Sans", size: 12 },
                 },
               },
