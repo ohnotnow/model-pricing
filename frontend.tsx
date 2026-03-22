@@ -327,28 +327,30 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                 titleFont: { family: "IBM Plex Sans", size: 13 },
                 bodyFont: { family: "IBM Plex Mono", size: 12 },
                 padding: 12,
-                filter: () => false,
+                // Keep one item per model (every 3rd dataset = the input line)
+                filter: (item) => item.datasetIndex % 3 === 0,
+                // Sort by most expensive (mix value) first
+                itemSort: (a, b) => {
+                  const mixA = a.chart.data.datasets[a.datasetIndex + 2]?.data[a.dataIndex] as number ?? 0;
+                  const mixB = b.chart.data.datasets[b.datasetIndex + 2]?.data[b.dataIndex] as number ?? 0;
+                  return mixB - mixA;
+                },
                 callbacks: {
-                  afterBody: (items) => {
-                    const perModel: Record<string, { input: number; output: number; mix: number }> = {};
-                    for (const item of items) {
-                      const label = item.dataset.label ?? "";
-                      const modelId = label.replace(/ \((input|output|50\/50 mix)\)$/, "");
-                      if (!perModel[modelId]) {
-                        perModel[modelId] = { input: 0, output: 0, mix: 0 };
-                      }
-                      const val = item.parsed.y;
-                      if (label.endsWith("(input)")) perModel[modelId].input = val;
-                      else if (label.endsWith("(output)")) perModel[modelId].output = val;
-                      else perModel[modelId].mix = val;
-                    }
-                    return Object.entries(perModel)
-                      .sort(([, a], [, b]) => b.mix - a.mix)
-                      .map(
-                        ([id, v]) =>
-                          `${id}  $${v.input.toFixed(2)} / $${v.output.toFixed(2)} / $${v.mix.toFixed(2)}`
-                      );
+                  // Build one condensed line per model: "name  $in / $out / $mix"
+                  label: (ctx) => {
+                    const idx = ctx.dataIndex;
+                    const base = ctx.datasetIndex;
+                    const input = ctx.chart.data.datasets[base]?.data[idx] as number ?? 0;
+                    const output = ctx.chart.data.datasets[base + 1]?.data[idx] as number ?? 0;
+                    const mix = ctx.chart.data.datasets[base + 2]?.data[idx] as number ?? 0;
+                    const modelId = (ctx.dataset.label ?? "").replace(/ \(input\)$/, "");
+                    return ` ${modelId}  $${input.toFixed(2)} / $${output.toFixed(2)} / $${mix.toFixed(2)}`;
                   },
+                  labelColor: (ctx) => ({
+                    borderColor: ctx.dataset.borderColor as string,
+                    backgroundColor: ctx.dataset.borderColor as string,
+                    borderRadius: 2,
+                  }),
                 },
               },
             },
