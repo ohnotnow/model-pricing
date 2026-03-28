@@ -62,6 +62,7 @@ function App() {
   const [selected, setSelected] = useState<ModelPricing[]>([]);
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [curveMode, setCurveMode] = useState<"both" | "input" | "output">("both");
   const [barMode, setBarMode] = useState<"grouped" | "stacked">("grouped");
   const searchRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -209,7 +210,7 @@ function App() {
 
       {/* ─── Charts ─── */}
       <div className="charts-grid">
-        <CostCurveChart models={selected} />
+        <CostCurveChart models={selected} curveMode={curveMode} setCurveMode={setCurveMode} />
         <CostBarChart
           models={selected}
           stacked={barMode === "stacked"}
@@ -238,7 +239,11 @@ function formatTokens(t: number): string {
   return `${t}`;
 }
 
-function CostCurveChart({ models }: { models: ModelPricing[] }) {
+function CostCurveChart({ models, curveMode, setCurveMode }: {
+  models: ModelPricing[];
+  curveMode: "both" | "input" | "output";
+  setCurveMode: (m: "both" | "input" | "output") => void;
+}) {
   const chartRef = useRef<ChartJS<"line">>(null);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
   const isZoomed = zoomRange !== null;
@@ -266,19 +271,22 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
     const makePoints = (costPer1M: number) =>
       TOKEN_STEPS.map((t) => ({ x: t, y: (t / 1_000_000) * costPer1M }));
 
-    return [
-      {
+    const lines = [];
+    if (curveMode !== "output") {
+      lines.push({
         label: `${m.id} (input)`,
         data: makePoints(m.inputCostPer1M),
         borderColor: colour,
         backgroundColor: "transparent",
         borderWidth: 2,
-        borderDash: [6, 3] as number[],
+        borderDash: curveMode === "both" ? [6, 3] as number[] : [] as number[],
         pointRadius: 0,
         pointHoverRadius: 4,
         tension: 0.1,
-      },
-      {
+      });
+    }
+    if (curveMode !== "input") {
+      lines.push({
         label: `${m.id} (output)`,
         data: makePoints(m.outputCostPer1M),
         borderColor: colour,
@@ -287,8 +295,9 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
         pointRadius: 0,
         pointHoverRadius: 4,
         tension: 0.1,
-      },
-    ];
+      });
+    }
+    return lines;
   });
 
   const handleResetZoom = () => {
@@ -302,15 +311,28 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
         <div>
           <div className="chart-card-title">Cost Curve</div>
           <div className="chart-card-subtitle">
-            Solid = output, dashed = input. Tooltip: model (in / out).
-            <br />Drag across the chart to zoom into a token range.
+            {curveMode === "both" ? "Solid = output, dashed = input." : `Showing ${curveMode} cost only.`}
+            {" "}Drag to zoom.
           </div>
         </div>
-        {isZoomed && (
-          <button className="reset-zoom-btn" onClick={handleResetZoom}>
-            Reset Zoom
-          </button>
-        )}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          {isZoomed && (
+            <button className="reset-zoom-btn" onClick={handleResetZoom}>
+              Reset Zoom
+            </button>
+          )}
+          <div className="toggle-group">
+            {(["both", "input", "output"] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`toggle-btn ${curveMode === mode ? "active" : ""}`}
+                onClick={() => setCurveMode(mode)}
+              >
+                {mode === "both" ? "Both" : mode === "input" ? "Input" : "Output"}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="chart-wrap">
         <Line
@@ -329,11 +351,13 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                 titleFont: { family: "IBM Plex Sans", size: 13 },
                 bodyFont: { family: "IBM Plex Mono", size: 12 },
                 padding: 12,
-                filter: (item) => item.datasetIndex % 2 === 0,
+                filter: curveMode === "both"
+                  ? (item) => item.datasetIndex % 2 === 0
+                  : () => true,
                 itemSort: (a, b) => {
-                  const outA = (a.chart.data.datasets[a.datasetIndex + 1]?.data[a.dataIndex] as any)?.y ?? 0;
-                  const outB = (b.chart.data.datasets[b.datasetIndex + 1]?.data[b.dataIndex] as any)?.y ?? 0;
-                  return outB - outA;
+                  const valA = (a.raw as any)?.y ?? 0;
+                  const valB = (b.raw as any)?.y ?? 0;
+                  return valB - valA;
                 },
                 callbacks: {
                   title: (items) => {
@@ -341,12 +365,16 @@ function CostCurveChart({ models }: { models: ModelPricing[] }) {
                     return formatTokens(xVal) + " tokens";
                   },
                   label: (ctx) => {
-                    const idx = ctx.dataIndex;
-                    const base = ctx.datasetIndex;
-                    const input = (ctx.chart.data.datasets[base]?.data[idx] as any)?.y ?? 0;
-                    const output = (ctx.chart.data.datasets[base + 1]?.data[idx] as any)?.y ?? 0;
-                    const modelId = (ctx.dataset.label ?? "").replace(/ \(input\)$/, "");
-                    return ` ${modelId}  $${input.toFixed(2)} / $${output.toFixed(2)}`;
+                    const val = (ctx.raw as any)?.y ?? 0;
+                    const modelId = (ctx.dataset.label ?? "").replace(/ \((input|output)\)$/, "");
+                    if (curveMode === "both") {
+                      const idx = ctx.dataIndex;
+                      const base = ctx.datasetIndex;
+                      const input = (ctx.chart.data.datasets[base]?.data[idx] as any)?.y ?? 0;
+                      const output = (ctx.chart.data.datasets[base + 1]?.data[idx] as any)?.y ?? 0;
+                      return ` ${modelId}  $${input.toFixed(2)} / $${output.toFixed(2)}`;
+                    }
+                    return ` ${modelId}  $${val.toFixed(2)}`;
                   },
                   labelColor: (ctx) => ({
                     borderColor: ctx.dataset.borderColor as string,
